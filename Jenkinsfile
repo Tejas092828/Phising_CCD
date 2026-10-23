@@ -4,7 +4,7 @@ pipeline {
         // You must configure this credential ID in Jenkins later
         DOCKERHUB_CREDENTIALS = credentials('dockerhub-id') 
         IMAGE_NAME = "tejas0909/phising-ccd"
-        IMAGE_TAG = "${env.BUILD_ID}"
+        IMAGE_TAG = "${env.BUILD_ID}"   
     }
     stages {
         stage('Checkout') {
