@@ -18,7 +18,7 @@ pipeline {
                 // Application is built and tests are run
                 // Tip: If your project has no tests, use a syntax-check step
                 sh 'echo "Running syntax check as a test..."'
-                sh 'python -m py_compile app.py' 
+                sh 'python3 -m py_compile app.py' 
             }
         }
         stage('Docker Build') {
