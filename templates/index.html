@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Link Analyzer</title>
+    <style>
+        :root {
+            --card-bg: rgba(15, 23, 42, 0.78);
+            --card-border: rgba(255, 255, 255, 0.12);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        /* 1. NEUTRAL STATE (Default when input is empty) */
+        body {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 24px;
+            color: var(--text-primary);
+            background-color: #0f172a;
+            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 75%);
+            transition: background-color 0.6s ease, background-image 0.6s ease;
+        }
+
+        /* 2. SAFE STATE (Green background) */
+        body.state-safe {
+            background-color: #064e3b;
+            background-image: radial-gradient(circle at 50% 0%, #10b981 0%, #064e3b 70%);
+            --accent: #10b981;
+        }
+
+        /* 3. PHISHING STATE (Red background) */
+        body.state-phishing {
+            background-color: #450a0a;
+            background-image: radial-gradient(circle at 50% 0%, #ef4444 0%, #450a0a 70%);
+            --accent: #ef4444;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: var(--card-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border);
+            border-radius: 20px;
+            padding: 36px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.4s ease, box-shadow 0.4s ease;
+        }
+
+        body.state-safe .container {
+            border-color: rgba(16, 185, 129, 0.45);
+            box-shadow: 0 25px 50px -12px rgba(6, 78, 59, 0.7);
+        }
+
+        body.state-phishing .container {
+            border-color: rgba(239, 68, 68, 0.45);
+            box-shadow: 0 25px 50px -12px rgba(69, 10, 10, 0.7);
+        }
+
+        h1 {
+            font-size: 1.85rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-bottom: 28px;
+        }
+
+        .input-group {
+            position: relative;
+            display: flex;
+            gap: 12px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            flex: 1;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px 42px 15px 18px;
+            font-size: 1rem;
+            color: var(--text-primary);
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 12px;
+            outline: none;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+        }
+
+        .clear-btn {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            cursor: pointer;
+            display: none;
+            line-height: 1;
+            padding: 4px;
+        }
+
+        .clear-btn:hover {
+            color: var(--text-primary);
+        }
+
+        button.analyze-btn {
+            padding: 0 26px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #ffffff;
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.15s ease, opacity 0.2s ease;
+            white-space: nowrap;
+        }
+
+        button.analyze-btn:hover {
+            opacity: 0.92;
+        }
+
+        button.analyze-btn:active {
+            transform: scale(0.98);
+        }
+
+        button.analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .result-card {
+            margin-top: 28px;
+            padding: 24px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid var(--card-border);
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .verdict-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .verdict-badge {
+            font-size: 1.35rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .verdict-safe { color: #34d399; }
+        .verdict-phishing { color: #f87171; }
+
+        .meta-stats {
+            display: flex;
+            gap: 18px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .meta-stats strong {
+            color: var(--text-primary);
+        }
+
+        .features-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .feature-item {
+            background: rgba(30, 41, 59, 0.6);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .feature-name {
+            color: var(--text-secondary);
+        }
+
+        .feature-val {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .error-msg {
+            margin-top: 18px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        /* RECENT DIAGNOSTIC LOG STYLES */
+        .history-section {
+            margin-top: 28px;
+            padding-top: 22px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .history-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        .clear-history-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .clear-history-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: rgba(30, 41, 59, 0.55);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
+        }
+
+        .history-item:hover {
+            background: rgba(30, 41, 59, 0.9);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .history-url {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 62%;
+        }
+
+        .history-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+
+        .pill {
+            padding: 3px 9px;
+            border-radius: 999px;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+
+        .pill-safe {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+
+        .pill-phishing {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.35);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Phishing Link Analyzer</h1>
+        <p class="subtitle">Paste a URL below to inspect it with our Random Forest security model</p>
+
+        <form id="analyzeForm" class="input-group">
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="urlInput" 
+                    placeholder="https://example.com/login" 
+                    autocomplete="off"
+                    spellcheck="false"
+                >
+                <button type="button" id="clearBtn" class="clear-btn" title="Clear link">&times;</button>
+            </div>
+            <button type="submit" id="analyzeBtn" class="analyze-btn">Analyze URL</button>
+        </form>
+
+        <div id="errorBox" class="error-msg"></div>
+
+        <div id="resultCard" class="result-card">
+            <div class="verdict-header">
+                <div id="verdictBadge" class="verdict-badge"></div>
+                <div class="meta-stats">
+                    <span>Confidence: <strong id="confidenceVal">--</strong></span>
+                    <span>Time: <strong id="timeVal">--</strong></span>
+                </div>
+            </div>
+            <div class="features-title">Extracted URL Features</div>
+            <div id="featuresGrid" class="features-grid"></div>
+        </div>
+
+        <!-- RECENT DIAGNOSTIC LOG -->
+        <div id="historySection" class="history-section">
+            <div class="history-header">
+                <span class="history-title">Recently Diagnosed URLs</span>
+                <button type="button" id="clearHistoryBtn" class="clear-history-btn">Clear Log</button>
+            </div>
+            <div id="historyList" class="history-list"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById("analyzeForm");
+        const urlInput = document.getElementById("urlInput");
+        const clearBtn = document.getElementById("clearBtn");
+        const analyzeBtn = document.getElementById("analyzeBtn");
+        const resultCard = document.getElementById("resultCard");
+        const verdictBadge = document.getElementById("verdictBadge");
+        const confidenceVal = document.getElementById("confidenceVal");
+        const timeVal = document.getElementById("timeVal");
+        const featuresGrid = document.getElementById("featuresGrid");
+        const errorBox = document.getElementById("errorBox");
+        const historySection = document.getElementById("historySection");
+        const historyList = document.getElementById("historyList");
+        const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+
+        const STORAGE_KEY = "phishing_analyzer_history";
+
+        // Load saved log on page startup
+        function getHistory() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+            } catch {
+                return [];
+            }
+        }
+
+        // Save new scan result to the top of the log (keeps latest 10 unique URLs)
+        function addToHistory(entry) {
+            const history = getHistory().filter(item => item.url !== entry.url);
+            history.unshift(entry);
+            if (history.length > 10) history.pop();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+            renderHistory();
+        }
+
+        // Render the diagnostic log UI
+        function renderHistory() {
+            const history = getHistory();
+            historyList.innerHTML = "";
+
+            if (history.length === 0) {
+                historySection.style.display = "none";
+                return;
+            }
+
+            historySection.style.display = "block";
+            history.forEach(item => {
+                const row = document.createElement("div");
+                row.className = "history-item";
+                row.title = "Click to re-inspect this URL";
+
+                const urlSpan = document.createElement("span");
+                urlSpan.className = "history-url";
+                urlSpan.textContent = item.url;
+
+                const metaDiv = document.createElement("div");
+                metaDiv.className = "history-meta";
+
+                const pill = document.createElement("span");
+                const isSafe = item.verdict === "Safe";
+                pill.className = `pill ${isSafe ? "pill-safe" : "pill-phishing"}`;
+                pill.textContent = `${isSafe ? "Safe" : "Phishing"} (${item.confidence_score}%)`;
+
+                const timeSpan = document.createElement("span");
+                timeSpan.textContent = item.timestamp;
+
+                metaDiv.appendChild(pill);
+                metaDiv.appendChild(timeSpan);
+                row.appendChild(urlSpan);
+                row.appendChild(metaDiv);
+
+                // Clicking a logged item fills the input and shows its diagnosis
+                row.addEventListener("click", () => {
+                    urlInput.value = item.url;
+                    clearBtn.style.display = "block";
+                    displayResult(item);
+                });
+
+                historyList.appendChild(row);
+            });
+        }
+
+        // Display diagnosis result and shift background color
+        function displayResult(data) {
+            errorBox.style.display = "none";
+            document.body.classList.remove("state-safe", "state-phishing");
+
+            if (data.verdict === "Safe") {
+                document.body.classList.add("state-safe");
+                verdictBadge.className = "verdict-badge verdict-safe";
+                verdictBadge.innerHTML = "✅ Safe Link";
+            } else {
+                document.body.classList.add("state-phishing");
+                verdictBadge.className = "verdict-badge verdict-phishing";
+                verdictBadge.innerHTML = "🚨 Phishing Detected";
+            }
+
+            confidenceVal.textContent = `${data.confidence_score}%`;
+            timeVal.textContent = `${data.processing_time_ms} ms`;
+
+            featuresGrid.innerHTML = "";
+            if (data.features) {
+                Object.entries(data.features).forEach(([key, value]) => {
+                    const item = document.createElement("div");
+                    item.className = "feature-item";
+                    item.innerHTML = `
+                        <span class="feature-name">${key.replace(/_/g, " ")}</span>
+                        <span class="feature-val">${value}</span>
+                    `;
+                    featuresGrid.appendChild(item);
+                });
+            }
+
+            resultCard.style.display = "block";
+        }
+
+        // Reset UI and background to neutral when link is removed
+        function resetToNeutral() {
+            document.body.classList.remove("state-safe", "state-phishing");
+            resultCard.style.display = "none";
+            errorBox.style.display = "none";
+        }
+
+        urlInput.addEventListener("input", () => {
+            const hasText = urlInput.value.trim().length > 0;
+            clearBtn.style.display = hasText ? "block" : "none";
+            if (!hasText) {
+                resetToNeutral();
+            }
+        });
+
+        clearBtn.addEventListener("click", () => {
+            urlInput.value = "";
+            clearBtn.style.display = "none";
+            resetToNeutral();
+            urlInput.focus();
+        });
+
+        clearHistoryBtn.addEventListener("click", () => {
+            localStorage.removeItem(STORAGE_KEY);
+            renderHistory();
+        });
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                resetToNeutral();
+                return;
+            }
+
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = "Scanning...";
+            errorBox.style.display = "none";
+
+            try {
+                const response = await fetch("/api/analyze", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (urlInput.value.trim() === "") {
+                    resetToNeutral();
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Failed to analyze link.");
+                }
+
+                displayResult(data);
+
+                // Log the diagnosed URL with current time
+                const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                addToHistory({ ...data, timestamp: now });
+
+            } catch (err) {
+                document.body.classList.remove("state-safe", "state-phishing");
+                resultCard.style.display = "none";
+                errorBox.textContent = err.message;
+                errorBox.style.display = "block";
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.textContent = "Analyze URL";
+            }
+        });
+
+        // Initialize log view on load
+        renderHistory();
+    </script>
+</body>
+</html>
